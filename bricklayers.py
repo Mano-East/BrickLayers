@@ -1771,13 +1771,16 @@ class BrickLayersProcessor:
             if feature.internal_perimeter:
                 # Internal Perimeter is about to start!
                 # Needs to group the lines in Loops
-                    
-
-                if feature.layer >= start_at_layer and feature.layer not in layers_to_ignore: # Allows the processor to ignore certain layers
+                apply_brick_layering = (
+                    feature.layer >= start_at_layer and 
+                    (self.end_at_layer is None or feature.layer <= self.end_at_layer) and 
+                    feature.layer not in layers_to_ignore
+                )
+                if apply_brick_layering:  # Allows the processor to apply brick layering within the specified range
                     # If it got inside, this Inner Perimeter should be Brick-Layer Processed!
-                    myline.previous = previous_state    # attach the previous simulated state to the line
-                    myline.current = current_state      # attach the current  simulated state to the line
-                    myline.object = feature.current_object # Reference to the Currently Printing Object, for the "Cancel Object" feature
+                    myline.previous = previous_state
+                    myline.current = current_state
+                    myline.object = feature.current_object
 
                     #logger.info(f"retracted:{simulator.retracted} is_extruding:{simulator.is_extruding} is_moving:{simulator.is_moving} just_stopped_extruding:{simulator.just_stopped_extruding} is_retracting:{simulator.is_retracting} - {myline.gcode.strip()}")
 
@@ -1812,8 +1815,8 @@ class BrickLayersProcessor:
                         group_loop.append(myline)
 
 
-                else: # When it layers to be ignored:
-                    # This Perimiter is part of a Layer that should NOT be modified. Just append:
+                else:
+                    # This Perimeter is outside the start/end range or in ignored layers, just append as-is
                     if myline is not None:
                         buffer_lines.append(myline)
 
@@ -2269,6 +2272,10 @@ Argument names are case-insensitive, so:
     parser.add_argument("-noLogging", action="store_true",
                         help="\nDisables any Logging from BrickLayers\n"
                                "(NOT FULLY IMPLEMENTED YET)\n\n")
+    parser.add_argument("-endAtLayer", type=int, default=None,
+                    help="\nLayer to stop applying Brick Layering (inclusive)\n"
+                         "Default: None (processes until the end)\n"
+                         "Example: -endAtLayer 20 stops after layer 20\n\n")
 
     args = parser.parse_args()
 
@@ -2383,6 +2390,7 @@ Argument names are case-insensitive, so:
         processor = BrickLayersProcessor(
             extrusion_global_multiplier=args_dict["extrusionmultiplier"],
             start_at_layer=args_dict["startatlayer"],
+            end_at_layer=args_dict["endatlayer"],  # Add this line
             layers_to_ignore=final_ignored_layers,
             verbosity=verbosity
         )
@@ -2416,6 +2424,7 @@ Argument names are case-insensitive, so:
             "OS"                   : os_info,
             "Input Source"         : "Slicer" if is_uploading else "Command Line",
             "Starting at Layer"    : args_dict["startatlayer"],
+            "Ending at Layer"      : args_dict["endatlayer"],
             "Ignored Layers"       : final_ignored_layers,
             "Extrusion Multiplier" : args_dict["extrusionmultiplier"]
         }
